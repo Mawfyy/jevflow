@@ -1,97 +1,138 @@
 /**
- * Mock provider for testing
+ * Deterministic mock provider for testing.
  *
- * Returns mock responses without making real API calls.
+ * The mock provider never touches a real AI model. It returns values from a
+ * map keyed by decision name, with sensible per-kind defaults for anything
+ * not explicitly mocked. This lets developers test workflows and policies
+ * deterministically, including failure and low-confidence cases.
+ *
+ * @example
+ * const provider = new MockProvider({
+ *   'payment-risk': { value: 9, confidence: 0.95 },
+ *   'suspicious-payment': { probability: 0.93 },
+ * });
  */
 
-import type { DecisionProvider, DecisionRun, ProviderOutput } from '../decisions/types';
+import type { DecisionProvider, DecisionRun } from './types';
+import type { Decision, ResultOf } from '../decision/decision';
+import type { NoulResult, ScoreResult, ChoiceResult, RawResult } from '../decision/result';
+import { noulConfidence } from '../decision/result';
 
-interface MockProviderOptions {
-  /** Simulate failures for specific decisions */
-  fails?: string[];
-  /** Simulate latency in ms */
-  latencyMs?: number;
-  /** Default noul probability when no specific mock is set */
-  defaultNoul?: number;
+/**
+ * A loose mock value. The provider interprets it according to the decision's
+ * kind (e.g. `{ value: 9 }` is a score for a score decision, `{ value:
+ * 'technical' }` is the selected label for a choice decision).
+ */
+export interface MockValue {
+  /** For noul: probability of yes. */
+  probability?: number;
+  /** For score/choice: the numeric position or selected label. */
+  value?: number | string;
+  /** Optional confidence; derived for noul when omitted. */
+  confidence?: number;
+  /** Optional probability distribution (choice labels or score levels). */
+  probabilities?: Record<string, number>;
 }
 
-export const MockProvider: DecisionProvider & {
-  fails: string[];
-  setOptions: (opts: MockProviderOptions) => void;
-} = {
-  id: 'mock',
-  name: 'Mock Provider',
-  fails: [],
+export interface MockProviderOptions {
+  /** Per-attempt delay, in milliseconds (default 0). */
+  delayMs?: number;
+}
 
-  setOptions(opts: MockProviderOptions) {
-    if (opts.fails) this.fails = opts.fails;
-  },
+export class MockProvider implements DecisionProvider {
+  readonly id = 'mock';
+  readonly name = 'Mock Provider';
 
-  async evaluateBatch(
-    decisions: readonly DecisionRun[],
-    input: unknown,
-    opts?: Record<string, unknown>
-  ): Promise<readonly ProviderOutput[]> {
-    const results: ProviderOutput[] = [];
-    for (const run of decisions) {
-      const result = await this.evaluateSingle(run, input, opts);
-      results.push(result);
+  private readonly mocks: Record<string, MockValue>;
+  private readonly delayMs: number;
+  private readonly failures = new Set<string>();
+
+  constructor(mocks: Record<string, MockValue> = {}, options: MockProviderOptions = {}) {
+    this.mocks = mocks;
+    this.delayMs = options.delayMs ?? 0;
+  }
+
+  /** Causes the named decision to throw, simulating a provider failure. */
+  fail(...names: string[]): this {
+    for (const name of names) this.failures.add(name);
+    return this;
+  }
+
+  /** Clears all injected failures. */
+  clearFailures(): this {
+    this.failures.clear();
+    return this;
+  }
+
+  async evaluate<D extends Decision>(decision: D, input: unknown): Promise<ResultOf<D>> {
+    if (this.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    }
+
+    if (this.failures.has(decision.name)) {
+      throw new Error(`MockProvider: simulated failure for decision "${decision.name}"`);
+    }
+
+    const mock = this.mocks[decision.name];
+    switch (decision.kind) {
+      case 'noul':
+        return this.noul(mock) as ResultOf<D>;
+      case 'score':
+        return this.score(decision, mock) as ResultOf<D>;
+      case 'choice':
+        return this.choice(decision, mock) as ResultOf<D>;
+    }
+  }
+
+  async evaluateBatch(runs: readonly DecisionRun[]): Promise<readonly RawResult[]> {
+    const results: RawResult[] = [];
+    for (const run of runs) {
+      results.push(await this.evaluate(run.decision, run.input));
     }
     return results;
-  },
+  }
 
-  async evaluateSingle(
-    decision: DecisionRun,
-    input: unknown,
-    opts?: Record<string, unknown>
-  ): Promise<ProviderOutput> {
-    // Simulate latency if configured
-    const latencyMs = (opts?.latencyMs as number) ?? 10;
-    if (latencyMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, latencyMs));
-    }
-
-    // Check if this decision should fail
-    if (this.fails.includes(decision.decision.name)) {
-      throw new Error(`Mock failure for decision: ${decision.decision.name}`);
-    }
-
-    // Return mock output based on decision type
-    const outputType = decision.decision.output.type;
-
-    let produced: unknown;
-    switch (outputType) {
-      case 'noul':
-        produced = {
-          type: 'noul',
-          noul: (opts?.defaultNoul as number) ?? 0.85,
-        };
-        break;
-      case 'score':
-        produced = {
-          type: 'score',
-          score: 1.5,
-          confidence: 0.7,
-          probabilities: { 0: 0.1, 1: 0.6, 2: 0.3 },
-        };
-        break;
-      case 'choice':
-        produced = {
-          type: 'choice',
-          choice: 'option_a',
-          confidence: 0.9,
-          probabilities: { option_a: 0.9, option_b: 0.1 },
-        };
-        break;
-      default:
-        produced = { type: 'noul', noul: 0.5 };
-    }
-
+  private noul(mock?: MockValue): NoulResult {
+    const probability = mock?.probability ?? 0.5;
     return {
-      type: outputType as 'noul' | 'score' | 'choice',
-      produced,
-      latencyMs,
-      attempts: 1,
+      probability,
+      confidence: mock?.confidence ?? noulConfidence(probability),
     };
-  },
-};
+  }
+
+  private score(decision: Decision & { kind: 'score' }, mock?: MockValue): ScoreResult {
+    const levels = decision.levels;
+    const top = levels.length - 1;
+    const value = typeof mock?.value === 'number' ? mock.value : top / 2;
+    const probabilities: Record<number, number> = {};
+    const closest = Math.round(value);
+    for (let i = 0; i < levels.length; i++) {
+      probabilities[i] = i === closest ? 1 : 0;
+    }
+    return {
+      value,
+      confidence: mock?.confidence ?? (Number.isInteger(value) ? 1 : 0.5),
+      probabilities,
+      legend: levels,
+    };
+  }
+
+  private choice(decision: Decision & { kind: 'choice' }, mock?: MockValue): ChoiceResult {
+    const options = decision.options;
+    const value = typeof mock?.value === 'string' ? mock.value : (options[0] ?? '');
+    let probabilities: Record<string, number>;
+    if (mock?.probabilities) {
+      probabilities = mock.probabilities;
+    } else {
+      probabilities = {};
+      for (const option of options) {
+        probabilities[option] = option === value ? 1 : 0;
+      }
+    }
+    return {
+      value,
+      confidence: mock?.confidence ?? (probabilities[value] ?? 0),
+      probabilities,
+    };
+  }
+}

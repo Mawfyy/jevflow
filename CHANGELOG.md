@@ -1,26 +1,27 @@
 # Changelog
 
-## 0.1.0 (Initial Release)
+## 0.1.0 (Initial release)
 
-### Features
-- Core types: `Decision`, `DecisionRun`, `ProviderOutput`, `EvaluationRecord`, `DecisionProvider`
-- Engine functions: `run()`, `runBatch()`
-- `MockProvider` for testing without API calls
-- `TypeSafeProvider` for real TypeSafe API integration
-- Support for three decision types:
-  - **Noul**: Yes/no probability (0-1)
-  - **Score**: Rating on ordered scale with probabilities
-  - **Choice**: Selection from named options with probabilities
+### Core (`@jevflow/core`)
+- **Decisions** — `noul`, `score`, `choice` builders returning typed, versioned,
+  reusable decisions (pure data, no provider coupling).
+- **Results** — `NoulResult`, `ScoreResult`, `ChoiceResult` with derived noul
+  confidence (binary entropy).
+- **Thresholds** — `Selector` / `NumericSelector` with `greaterThan`,
+  `greaterThanOrEqual`, `lessThan`, `lessThanOrEqual`, `between`, `equals`,
+  `notEquals`.
+- **Workflows** — `workflow(name).input(schema).evaluate(decision).when(threshold)
+  .then(action).run(input, provider)` returning an explainable `WorkflowOutcome`
+  (no side effects).
+- **MockProvider** — deterministic provider with per-decision mock values,
+  defaults, failure injection, and configured latency.
+- **Records & observability** — `EvaluationRecord` and lifecycle `Listener`
+  (`MemoryListener`, `NoopListener`).
 
-### Providers
-- `MockProvider`: Simulates responses with configurable latency and failure injection
-- `TypeSafeProvider`: Uses TypeSafe System One models via `@typesafe-ai/sdk`
+### Provider (`@jevflow/provider-jev`)
+- **JevProvider** — TypeSafe System One integration (`noul`, `score`, `choice`),
+  batch evaluation, mapped to JevFlow result types.
 
 ### Examples
-- `example.ts`: MockProvider usage demonstration
-- `example-typesafe.ts`: Real TypeSafe API usage demonstration
-
-### Documentation
-- README.md with API reference and usage examples
-- Package README for @jevflow/core
-- JSDoc comments on all public APIs
+- `basic`, `payments`, `github`, `support` — runnable via `pnpm examples:*`,
+  mixing deterministic mock runs and real API calls.

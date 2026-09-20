@@ -1,16 +1,42 @@
 /**
- * @jevflow/core - Probabilistic AI decisions as composable backend primitives
+ * @jevflow/core — probabilistic AI decisions as composable backend primitives.
  *
- * This package provides the core types, engine, and provider interface
- * for the JevFlow library.
+ * JevFlow separates *probabilistic intelligence* (typed AI judgments) from
+ * *deterministic policy* (application thresholds). Decisions are pure data;
+ * providers supply calibrated results; workflows apply thresholds to produce
+ * explainable actions — which the application then executes.
  */
 
-// Core types
-export type { Decision, DecisionRun, ProviderOutput, EvaluationRecord, DecisionProvider } from './decisions/types';
+// Decisions
+export { decision, noul, score, choice } from './decision';
+export type {
+  NoulDecision,
+  ScoreDecision,
+  ChoiceDecision,
+  Decision,
+  BaseDecisionOptions,
+  NoulDecisionOptions,
+  ScoreDecisionOptions,
+  ChoiceDecisionOptions,
+  ResultOf,
+} from './decision';
+export type { NoulResult, ScoreResult, ChoiceResult, RawResult, DecisionKind } from './decision';
+export { binaryEntropy, noulConfidence } from './decision';
 
-// Engine
-export { run, runBatch } from './decisions/engine';
+// Thresholds
+export { Selector, NumericSelector, evaluateThreshold } from './decision';
+export type { Threshold, ComparisonOp } from './decision';
 
 // Providers
-export { MockProvider } from './provider/mock';
-export { TypeSafeProvider } from './provider/typesafe';
+export type { DecisionProvider, DecisionRun } from './provider';
+export { MockProvider } from './provider';
+export type { MockValue, MockProviderOptions } from './provider';
+
+// Workflows
+export { workflow, WorkflowBuilder } from './workflow';
+export type { WorkflowRunOptions, WorkflowOutcome, MatchedRule } from './workflow';
+
+// Records & observability
+export type { EvaluationRecord } from './record';
+export { EventNames, MemoryListener, NoopListener } from './record';
+export type { DecisionEvent, Listener, EventName } from './record';

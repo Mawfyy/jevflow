@@ -1,7 +1,7 @@
 {
-  "name": "@jevflow/core",
+  "name": "@jevflow/provider-jev",
   "version": "0.1.0",
-  "description": "Probabilistic AI decisions as composable backend programming primitives.",
+  "description": "TypeSafe Jev/System One provider for JevFlow.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +18,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^3.23.8"
+    "@jevflow/core": "workspace:*",
+    "@typesafe-ai/sdk": "^0.6.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -2,6 +2,7 @@
   "name": "jevflow",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "Treat probabilistic AI decisions as a programming primitive that composes with deterministic application logic.",
   "packageManager": "pnpm@12.5.1",
   "engines": {
@@ -10,6 +11,18 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "examples:basic": "tsx examples/basic/index.ts",
+    "examples:payments": "tsx examples/payments/index.ts",
+    "examples:github": "tsx examples/github/index.ts",
+    "examples:support": "tsx examples/support/index.ts"
+  },
+  "devDependencies": {
+    "@jevflow/core": "workspace:*",
+    "@jevflow/provider-jev": "workspace:*",
+    "dotenv": "^18.0.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.0",
+    "zod": "^3.23.8"
   }
 }
